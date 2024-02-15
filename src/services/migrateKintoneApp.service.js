@@ -40,7 +40,8 @@ export default class MigrateKintoneAppService {
         if (!record[field]) {
           continue;
         }
-        await Promise.all(record[field].map((file) => this.#msGraphService.uploadFile(this.#kintoneService.kintoneAttachments, `${record.attachmentFolder}/${label}`, file)));      
+        const folderName = `${record.attachmentFolder}/${encodeURIComponent(label)}`;
+        await Promise.all(record[field].map((file) => this.#msGraphService.uploadFile(this.#kintoneService.kintoneAttachments, folderName, file)));      
       }
     }
 

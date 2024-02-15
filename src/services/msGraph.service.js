@@ -27,7 +27,7 @@ export default class MsGraphService {
     this.#msClientId = client;
     this.#msClientSecret = secret;
     this.#sharepointFolder = sharepointFolder || 'me/drive/root';
-    this.#isDebug = debug || false;
+    this.#isDebug = debug || process.env.MS_GRAPH_DEBUG === 'true';
     this.logout();
   }
 
@@ -37,10 +37,15 @@ export default class MsGraphService {
 
   #debug(path, message) {
     if (this.#isDebug) {
-      console.debug(`\n⚠️ ${path}`);
+      console.debug(`\n⚠️  ${path}`);
       console.debug(message);
       console.debug();
     }
+  }
+
+  #debugResponse(path, response) {
+    const { status, statusText, body } = response;
+    return this.#debug(path, { status, statusText, body });
   }
 
   async #requestAuthorizationToken(token, grant_type = 'authorization_code') {
@@ -58,16 +63,19 @@ export default class MsGraphService {
           method: 'POST',
           'Content-Type': 'application/x-www-url-form-urlencoded',
           body,
-        }).then((r) => r.json());
+        }).then((r) => {
+          this.#debugResponse('RequestAuthorizationToken', r);
+          return r.json();
+        });
       if (authorization.error) {
-        console.error('⚠️ ', authorization.error);
+        this.#debug('RequestAuthorizationToken', authorization.error);
         throw new BaseError(authorization.error?.message || 'Error in get authorization token');
       }
       this.#debug('RequestAuthorizationToken', authorization);
       this.#setAuthorizationTokens(authorization);
       return authorization;
     } catch (error) {
-      console.error('⚠️ ', error);
+      this.#debug('RequestAuthorizationToken', error);
       throw new BaseError(`Cannot get the Sharepoint authorization ${tokenKey}`);
     }    
   }
@@ -86,8 +94,12 @@ export default class MsGraphService {
       headers: {
         'Authorization': `Bearer ${this.#msAccessToken}`,
       }
-    }).then((r) => r.json());
+    }).then((r) => {
+      this.#debugResponse('GetMyInfo', r);
+      return r.json();
+    });
     if (info.error) {
+      this.#debug('GetMyInfo', info.error);
       throw new BaseError('Error in get my information');
     }
   }
@@ -98,16 +110,19 @@ export default class MsGraphService {
     } catch (_) {
       try {
         const authorization = await this.#requestAuthorizationToken(this.#msRefreshToken, 'refresh_token')
-          .then((r) => r.json());
+          .then((r) => {
+            this.#debugResponse('RenewTokenWithNeeded', r);
+            return r.json();
+          });
         this.#debug('RenewTokenWithNeeded', authorization);
       } catch (error) {
-        console.error('⚠️ ', error);
+        this.#debug('RenewTokenWithNeeded', error);
         throw new BaseError('Cannot renew the current token, please try login again!');
       }
     }
   }
 
-  async #requestGraphApi(url, method, body, headers = {}) {
+  async #requestGraphApi(url, method, body, headers = {}, debug) {
     await this.#renewTokenWithNeeded();
     const response = await fetch(`${MsGraphService.#msGraphUrl}${url}`, {
         method,
@@ -116,10 +131,17 @@ export default class MsGraphService {
           ...headers,
         },
         body,
-      }).then((r) => r.json());
+      }).then(async (r) => {
+        if (debug) {
+          const text = await r.text();
+          this.#debug('RequestGraphApi', { url, text });
+        }
+        this.#debugResponse('RequestGraphApi', r);
+        return r.json();
+      });
     this.#debug('RequestGraphApi', response);
-    if (response.error) {
-      console.error('⚠️ ', response);
+    if (response.error) {      
+      this.#debug('RequestGraphApi', { url, error: response.error });
       throw new BaseError(`Error in request [${method}]: ${url}`);
     }
     return response;
@@ -133,8 +155,8 @@ export default class MsGraphService {
     return this.#requestGraphApi(url, 'POST', body, headers);
   }
 
-  async requestGraphPut(url, body, headers) {
-    return this.#requestGraphApi(url, 'PUT', body, headers);
+  async requestGraphPut(url, body, headers, debug) {
+    return this.#requestGraphApi(url, 'PUT', body, headers, debug);
   }
 
   async requestGraphDelete(url, body, headers) {
@@ -143,15 +165,17 @@ export default class MsGraphService {
 
   async uploadFile(attachmentDir, folderName, file) {
     const fileName = file.split('/').at(-1);
-    const urlFile = this.#sharepointFolder.concat(`:/${folderName}/${fileName}:/content`);
+    const urlFile = this.#sharepointFolder.concat(`:/${folderName}/${encodeURIComponent(fileName)}:/content`);
     try {
       const fileContent = await fs.readFile(attachmentDir.concat(`/${file}`));
-      const response = await this.requestGraphPut(encodeURIComponent(urlFile), fileContent);
+      const response = await this.requestGraphPut(urlFile, fileContent);
       if (response.error) {
+        this.#debug('UploadFile', response.error);
         throw new BaseError(response.error?.message || 'Error in upload file');
       }
       return response;
     } catch (error) {
+      this.#debug('UploadFile', { urlFile, error });
       throw new BaseError(`Cannot upload a new file in ${urlFile}`);
     }    
   }
