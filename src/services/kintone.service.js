@@ -28,7 +28,7 @@ export default class KintoneService {
     this.#kintoneAttachments = path.resolve(os.homedir(), 'atts', app);
     this.#kintoneCSV = path.resolve(os.homedir(), `kintone_app_${app}.csv`);
     this.#folderFields = folderFields || [];
-    this.#folderStructureName = folderStructureName || (() => this.#appKey);
+    this.#folderStructureName = folderStructureName || ((record) => record[this.#appKey]);
     this.#fileFields = null;
   }
 
@@ -57,7 +57,7 @@ export default class KintoneService {
           shell: true,
         },
       )
-      .catch((error) => null);
+      .catch(() => null);
     if (recordsApp){
       await fs.writeFile(this.#kintoneCSV, recordsApp);
     }
@@ -146,6 +146,10 @@ export default class KintoneService {
       }, {});
   }
 
+  async deleteFiles() {
+    await fs.rm(this.#kintoneCSV, { force: true });
+    await fs.rm(this.#kintoneAttachments, { force: true, recursive: true });
+  }
   
 }
   

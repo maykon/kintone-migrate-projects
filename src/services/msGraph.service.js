@@ -3,19 +3,20 @@ import { prompt } from '../utils/prompt.js';
 import fs from 'fs/promises';
 
 export default class MsGraphService {
+  static #msRedirectUri = 'https://login.live.com/oauth20_desktop.srf';
+  static #msGraphAuthUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/'
+  static #msGraphUrl = 'https://graph.microsoft.com/v1.0/';
+  static #msScopes = 'openid offline_access User.Read Files.ReadWrite.All';
+
   #msClientId;
   #msClientSecret;
-  #msScopes;
-  #msRedirectUri;
   #msCode;
   #msAccessToken;
   #msRefreshToken;
-  #msGraphAuthUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/'
-  #msGraphUrl = 'https://graph.microsoft.com/v1.0/';
   #sharepointFolder;
   #isDebug;
 
-  constructor({ client, secret, scopes, redirectUri, sharepointFolder, debug }) {
+  constructor({ client, secret, sharepointFolder, debug }) {
     if (!client) {
       throw new BaseError('⚠️ The Microsoft APP ClientID is required!');
     }
@@ -25,15 +26,13 @@ export default class MsGraphService {
 
     this.#msClientId = client;
     this.#msClientSecret = secret;
-    this.#msScopes = scopes;
-    this.#msRedirectUri = redirectUri;
     this.#sharepointFolder = sharepointFolder || 'me/drive/root';
     this.#isDebug = debug || false;
     this.logout();
   }
 
   #generateAuthorizeRequest() {
-    return `${this.#msGraphAuthUrl}authorize?client_id=${this.#msClientId}&response_type=code&redirect_uri=${this.#msRedirectUri}&response_mode=query&scope=${encodeURIComponent(this.#msScopes)}&state=12345`;
+    return `${MsGraphService.#msGraphAuthUrl}authorize?client_id=${this.#msClientId}&response_type=code&redirect_uri=${MsGraphService.#msRedirectUri}&response_mode=query&scope=${encodeURIComponent(MsGraphService.#msScopes)}&state=12345`;
   }
 
   #debug(path, message) {
@@ -50,12 +49,12 @@ export default class MsGraphService {
       const body = new FormData();
       body.append('client_id', this.#msClientId);
       body.append('client_secret', this.#msClientSecret);
-      body.append('scope', this.#msScopes);
-      body.append('redirect_uri', this.#msRedirectUri);
+      body.append('scope', MsGraphService.#msScopes);
+      body.append('redirect_uri', MsGraphService.#msRedirectUri);
       body.append('grant_type', grant_type);
       body.append(tokenKey, token);
 
-      const authorization = await fetch(`${this.#msGraphAuthUrl}token`, {
+      const authorization = await fetch(`${MsGraphService.#msGraphAuthUrl}token`, {
           method: 'POST',
           'Content-Type': 'application/x-www-url-form-urlencoded',
           body,
@@ -83,7 +82,7 @@ export default class MsGraphService {
   }
 
   async #getMyInfo() {
-    const info = await fetch(`${this.#msGraphUrl}me`, {
+    const info = await fetch(`${MsGraphService.#msGraphUrl}me`, {
       headers: {
         'Authorization': `Bearer ${this.#msAccessToken}`,
       }
@@ -110,7 +109,7 @@ export default class MsGraphService {
 
   async #requestGraphApi(url, method, body, headers = {}) {
     await this.#renewTokenWithNeeded();
-    const response = await fetch(`${this.#msGraphUrl}${url}`, {
+    const response = await fetch(`${MsGraphService.#msGraphUrl}${url}`, {
         method,
         headers: {
           'Authorization': `Bearer ${this.#msAccessToken}`,
@@ -159,7 +158,7 @@ export default class MsGraphService {
 
   async signIn() {
     const authorizeUrl = this.#generateAuthorizeRequest();
-    console.info('💡 Sharepoint Authentication step\n')
+    console.info('💡 Sharepoint Authentication step\n');
     this.#msCode = await prompt.question(`📢 Please open the following URL in your browser and follow the steps until you see a blank page:
 ${authorizeUrl}
     

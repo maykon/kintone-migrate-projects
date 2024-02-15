@@ -1,3 +1,9 @@
-import { migrateProjects } from './services/migrateKintoneProjects.service.js';
+import { createMigrateKintoneService } from './factories/migrateKintone.factory.js';
+import { setupParams } from './utils/setup.js';
 
-await migrateProjects();
+console.info(`🗂️  Migrate Kintone Attachments to Sharepoint\n`);
+
+const { appType, ...migrationParams } = await setupParams();
+const kintoneMigrationService = createMigrateKintoneService(appType, migrationParams);
+
+await kintoneMigrationService.run();

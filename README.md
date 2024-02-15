@@ -8,6 +8,8 @@ The Kintone exports the reports as a CSV file, I parse this file to get all the 
 
 There some ENV variables that needed be configured to allow this applications works like:
 
+- `KINTONE_APP_TYPE`
+  - The kintone App type (app/project) app as default.
 - `KINTONE_APP`
   - The kintone ID of the app.
 - `KINTONE_TOKEN`
@@ -30,5 +32,5 @@ There some ENV variables that needed be configured to allow this applications wo
 You can run the command bellow to pull a docker image with this application only need change the env variables like:
 
 
-    docker run --rm -it --name kintone-migrate-projects -e KINTONE_APP='1' -e KINTONE_TOKEN='querty123' -e MS_GRAPH_CLIENT_ID='123' -e MS_GRAPH_CLIENT_SECRET='querty321' maykoncapellari/kintone-migrate-projects
+    docker run --rm -it --name kintone-migrate-projects -e KINTONE_APP_TYPE='project' -e KINTONE_APP='1' -e KINTONE_TOKEN='querty123' -e MS_GRAPH_CLIENT_ID='123' -e MS_GRAPH_CLIENT_SECRET='querty321' maykoncapellari/kintone-migrate-projects
 
