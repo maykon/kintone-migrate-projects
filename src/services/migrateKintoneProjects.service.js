@@ -8,7 +8,7 @@ export default class MigrateKintoneProjectService extends MigrateKintoneAppServi
     return [record.client, record.property_occupant, record.project_type]
       .filter((r) => !!r)
       .join('/')
-      .concat('/')
+      .concat('/#')
       .concat(record.pecc_project_number)
       .concat(' - ')
       .concat(address);

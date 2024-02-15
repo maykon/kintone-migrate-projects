@@ -28,7 +28,7 @@ export default class KintoneService {
     this.#kintoneAttachments = path.resolve(os.homedir(), 'atts', app);
     this.#kintoneCSV = path.resolve(os.homedir(), `kintone_app_${app}.csv`);
     this.#folderFields = folderFields || [];
-    this.#folderStructureName = folderStructureName || ((record) => record[this.#appKey]);
+    this.#folderStructureName = folderStructureName || ((record) => `#${record[this.#appKey]}`);
     this.#fileFields = null;
   }
 

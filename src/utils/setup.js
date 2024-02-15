@@ -28,7 +28,7 @@ const paramsInfo = {
     value: params.token,
   },
   query: {
-    ask: 'Set the Kintone query that will specify what records will be returned: ',
+    ask: 'Set the Kintone query that will specify what records will be returned (Empty will return all records): ',
     value: params.query,
   },
   client: {
@@ -40,7 +40,7 @@ const paramsInfo = {
     value: params.secret,
   },
   sharepointFolder: {
-    ask: 'Set the Microsoft SharePoint folder path that will be used to export the attachments: ',
+    ask: 'Set the Microsoft SharePoint folder path that will be used to export the attachments (me/drive/root): ',
     value: params.sharepointFolder,
     default: sharepointDefaultFolder,
   },
