@@ -10,6 +10,8 @@ There some ENV variables that needed be configured to allow this applications wo
 
 - `KINTONE_APP_TYPE`
   - The kintone App type (app/project) app as default.
+- `KINTONE_HOST`
+  - The kintone Host.
 - `KINTONE_APP`
   - The kintone ID of the app.
 - `KINTONE_TOKEN`
@@ -26,6 +28,13 @@ There some ENV variables that needed be configured to allow this applications wo
 - `MS_SHAREPOINT_FOLDER`
   - The Microsoft SharePoint folder path that will be used to export the attachments.
   - If ignored, will be used `me/drive/root` as default
+- `MS_GRAPH_DEBUG`
+  - Log information to use as debug when some requests not working correctly.
+- `MS_GRAPH_LOG_TOKEN`
+  - Log the Access Token after login in the Microsoft Graph API.
+- `MS_GRAPH_ACCESS_TOKEN`
+  - Can pass a valid Access Token, this will avoid the sign in step.
+
 
 ## RUNNING
 

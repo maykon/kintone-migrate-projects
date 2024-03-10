@@ -1,13 +1,16 @@
 import BaseError from '../utils/base.error.js';
+import { encode } from '../utils/normalize.js';
 import { prompt } from '../utils/prompt.js';
-import fs from 'fs/promises';
+import fs, { constants } from 'fs/promises';
 
 export default class MsGraphService {
   static #msRedirectUri = 'https://login.live.com/oauth20_desktop.srf';
   static #msGraphAuthUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/'
   static #msGraphUrl = 'https://graph.microsoft.com/v1.0/';
   static #msScopes = 'openid offline_access User.Read Files.ReadWrite.All';
+  static #MAX_RETRIES = 3;
 
+  #firstRequest = true;
   #msClientId;
   #msClientSecret;
   #msCode;
@@ -15,8 +18,9 @@ export default class MsGraphService {
   #msRefreshToken;
   #sharepointFolder;
   #isDebug;
+  #shouldLogToken;
 
-  constructor({ client, secret, sharepointFolder, debug }) {
+  constructor({ client, secret, sharepointFolder, debug, token, logToken }) {
     if (!client) {
       throw new BaseError('⚠️ The Microsoft APP ClientID is required!');
     }
@@ -26,9 +30,11 @@ export default class MsGraphService {
 
     this.#msClientId = client;
     this.#msClientSecret = secret;
+    this.logout();
+    this.#msAccessToken = token;
     this.#sharepointFolder = sharepointFolder || 'me/drive/root';
     this.#isDebug = debug || process.env.MS_GRAPH_DEBUG === 'true';
-    this.logout();
+    this.#shouldLogToken = logToken === 'true';
   }
 
   #generateAuthorizeRequest() {
@@ -44,8 +50,8 @@ export default class MsGraphService {
   }
 
   #debugResponse(path, response) {
-    const { status, statusText, body } = response;
-    return this.#debug(path, { status, statusText, body });
+    const { url, status, statusText, body } = response;
+    return this.#debug(path, { url, status, statusText, body });
   }
 
   async #requestAuthorizationToken(token, grant_type = 'authorization_code') {
@@ -67,11 +73,10 @@ export default class MsGraphService {
           this.#debugResponse('RequestAuthorizationToken', r);
           return r.json();
         });
+      this.#debug('RequestAuthorizationToken', authorization);
       if (authorization.error) {
-        this.#debug('RequestAuthorizationToken', authorization.error);
         throw new BaseError(authorization.error?.message || 'Error in get authorization token');
       }
-      this.#debug('RequestAuthorizationToken', authorization);
       this.#setAuthorizationTokens(authorization);
       return authorization;
     } catch (error) {
@@ -87,62 +92,81 @@ export default class MsGraphService {
   #setAuthorizationTokens(authorization) {
     this.#msAccessToken = authorization.access_token;
     this.#msRefreshToken = authorization.refresh_token;
+    if(this.#shouldLogToken) {
+      console.info('🔑 MS Access Token: %s\n', this.#msAccessToken);
+    }
   }
 
   async #getMyInfo() {
-    const info = await fetch(`${MsGraphService.#msGraphUrl}me`, {
+    return this.requestGraphGet('me');
+  }
+
+  async getMyInfoFail() {
+    this.#msAccessToken = '123';
+    return this.requestGraphGet('me');
+  }
+
+  #getResponseLog(response) {
+    const { url, status, statusText } = response;
+    return { url, status, statusText };
+  }
+
+  async #refreshToken() {
+    try {
+      this.#debug('RefreshToken', this.#msRefreshToken);
+      return this.#requestAuthorizationToken(this.#msRefreshToken, 'refresh_token');
+    } catch (error) {
+      this.#debug('RefreshToken', error);
+      throw new BaseError('Cannot renew the current token, please try login again!');
+    }
+  }
+
+  async #internalRequest(url, method, body, headers) {
+    return fetch(url, {
+      method,
       headers: {
         'Authorization': `Bearer ${this.#msAccessToken}`,
-      }
-    }).then((r) => {
-      this.#debugResponse('GetMyInfo', r);
-      return r.json();
+        ...headers,
+      },
+      body,
     });
-    if (info.error) {
-      this.#debug('GetMyInfo', info.error);
-      throw new BaseError('Error in get my information');
+  }
+
+  async #renewTokenWithNeeded(url, method, body, headers) {
+    try {
+      let response = await this.#internalRequest(url, method, body, headers);
+      if (response.status === 401) {
+        await this.#refreshToken();
+        response = await this.#internalRequest(url, method, body, headers);
+      }
+      this.#debug('RenewTokenWithNeeded', this.#getResponseLog(response));
+      if (response.status === 401) {
+        throw new BaseError(response.statusText);
+      }
+      return response.json();
+    } catch (error) {
+      this.#debug('RenewTokenWithNeeded Error', error);
+      throw error;
     }
   }
 
-  async #renewTokenWithNeeded() {
-    try {
-      await this.#getMyInfo();
-    } catch (_) {
+  async #requestGraphApi(url, method, body, headers = {}) {
+    let retry = 1;
+    let response = null;
+    while(retry <= MsGraphService.#MAX_RETRIES) {
       try {
-        const authorization = await this.#requestAuthorizationToken(this.#msRefreshToken, 'refresh_token')
-          .then((r) => {
-            this.#debugResponse('RenewTokenWithNeeded', r);
-            return r.json();
-          });
-        this.#debug('RenewTokenWithNeeded', authorization);
-      } catch (error) {
-        this.#debug('RenewTokenWithNeeded', error);
-        throw new BaseError('Cannot renew the current token, please try login again!');
+        response = await this.#renewTokenWithNeeded(`${MsGraphService.#msGraphUrl}${url}`, method, body, headers);
+        this.#debug('RequestGraphApi', response);
+        if (response.error) {
+          throw new BaseError(`Error in request [${method}]: ${url}`);
+        }
+        break;
+      } catch(error) {
+        this.#debug('RequestGraphApi', { url, error: `Retrying ${retry++} time(s)`, throwed: error });
       }
     }
-  }
-
-  async #requestGraphApi(url, method, body, headers = {}, debug) {
-    await this.#renewTokenWithNeeded();
-    const response = await fetch(`${MsGraphService.#msGraphUrl}${url}`, {
-        method,
-        headers: {
-          'Authorization': `Bearer ${this.#msAccessToken}`,
-          ...headers,
-        },
-        body,
-      }).then(async (r) => {
-        if (debug) {
-          const text = await r.text();
-          this.#debug('RequestGraphApi', { url, text });
-        }
-        this.#debugResponse('RequestGraphApi', r);
-        return r.json();
-      });
-    this.#debug('RequestGraphApi', response);
-    if (response.error) {      
-      this.#debug('RequestGraphApi', { url, error: response.error });
-      throw new BaseError(`Error in request [${method}]: ${url}`);
+    if (retry > MsGraphService.#MAX_RETRIES) {
+      throw new BaseError(`Max retries error in request [${method}]: ${url}`);
     }
     return response;
   }
@@ -163,10 +187,23 @@ export default class MsGraphService {
     return this.#requestGraphApi(url, 'DELETE', body, headers);
   }
 
+  async #fileExists(filename) {
+    return fs.access(filename, fs.constants.F_OK)
+      .then(() => true)
+      .catch(() => false);
+  }
+
   async uploadFile(attachmentDir, folderName, file) {
     const fileName = file.split('/').at(-1);
-    const urlFile = this.#sharepointFolder.concat(`:/${folderName}/${encodeURIComponent(fileName)}:/content`);
+    const urlFile = this.#sharepointFolder.concat(`:/${folderName}/${encode(fileName)}:/content`);
     try {
+      const filePath = attachmentDir.concat(`/${file}`);
+      const fileExist = await this.#fileExists(filePath);
+      this.#debug('uploadFile', `File exists? ${fileExist}`);
+      if (!fileExist) {
+        this.#debug('uploadFile', `File ${filePath} not exists.`);
+        return null;
+      }
       const fileContent = await fs.readFile(attachmentDir.concat(`/${file}`));
       const response = await this.requestGraphPut(urlFile, fileContent);
       if (response.error) {
@@ -181,8 +218,13 @@ export default class MsGraphService {
   }
 
   async signIn() {
-    const authorizeUrl = this.#generateAuthorizeRequest();
     console.info('💡 Sharepoint Authentication step\n');
+    if (this.#msAccessToken) {
+      console.info('🔑 Sharepoint access token already informed.\n');
+      await this.#getMyInfo();
+      return;
+    }
+    const authorizeUrl = this.#generateAuthorizeRequest();
     this.#msCode = await prompt.question(`📢 Please open the following URL in your browser and follow the steps until you see a blank page:
 ${authorizeUrl}
     

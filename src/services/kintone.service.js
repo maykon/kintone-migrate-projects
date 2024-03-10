@@ -4,8 +4,10 @@ import fs from 'fs/promises';
 import { spawn } from '../utils/spawnAsync.js';
 import { csvParser } from '../utils/csvParser.js';
 import BaseError from '../utils/base.error.js';
+import { normalize } from '../utils/normalize.js';
 
 export default class KintoneService {
+  #host;
   #app;
   #appKey;
   #token;
@@ -15,13 +17,17 @@ export default class KintoneService {
   #folderStructureName;
   #fileFields;
 
-  constructor({ app, token, folderFields, appKey, folderStructureName }) {
+  constructor({ host, app, token, folderFields, appKey, folderStructureName }) {
+    if (!host) {
+      throw new BaseError('⚠️ The kintone Host is required!');
+    }
     if (!app) {
       throw new BaseError('⚠️ The kintone ID of the app is required!');
     }
     if (!token) {
       throw new BaseError('⚠️ The kintone App\'s API token is required!');
     }
+    this.#host = host;
     this.#app = app;
     this.#appKey = appKey || 'Record_number';
     this.#token = token;
@@ -44,7 +50,7 @@ export default class KintoneService {
           'record',
           'export',
           '--base-url',
-          'https://pecc.kintone.com',
+          this.#host,
           '--app', 
           this.#app,
           '--api-token',
@@ -55,6 +61,7 @@ export default class KintoneService {
         { 
           env: process.env,
           shell: true,
+          maxBuffer: 1024 ** 3, 
         },
       )
       .catch(() => null);
@@ -69,7 +76,7 @@ export default class KintoneService {
   }
 
   async getSchemaApp() {
-    return fetch(`https://pecc.kintone.com/k/v1/app/form/fields.json?app=${this.#app}`, {
+    return fetch(`${this.#host}/k/v1/app/form/fields.json?app=${this.#app}`, {
       headers: {
         'X-Cybozu-Api-Token': this.#token,
       }
@@ -89,7 +96,7 @@ export default class KintoneService {
     this.#fileFields = Object.entries(fields?.properties ?? {})
       .filter(([_, value]) => value.type === 'FILE')
       .reduce((acc, [key, value]) => {
-        acc[key] = value.label;
+        acc[key] = normalize(value.label);
         return acc;
       }, {});
     return this.#fileFields;

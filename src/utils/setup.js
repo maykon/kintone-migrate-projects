@@ -3,14 +3,18 @@ import { prompt } from './prompt.js';
 
 const defaultAppType = 'app';
 const sharepointDefaultFolder = 'me/drive/root';
+const defaultClientValue = process.env.MS_GRAPH_ACCESS_TOKEN ? 'token' : undefined;
 const params = {
   appType: process.env.KINTONE_APP_TYPE,
+  host: process.env.KINTONE_HOST,
   app: process.env.KINTONE_APP,
   token: process.env.KINTONE_TOKEN,
   query: process.env.KINTONE_APP_QUERY,
-  client: process.env.MS_GRAPH_CLIENT_ID,
-  secret: process.env.MS_GRAPH_CLIENT_SECRET,
+  msToken: process.env.MS_GRAPH_ACCESS_TOKEN,
+  client: process.env.MS_GRAPH_CLIENT_ID ?? defaultClientValue,
+  secret: process.env.MS_GRAPH_CLIENT_SECRET ?? defaultClientValue,
   sharepointFolder: process.env.MS_SHAREPOINT_FOLDER,
+  logToken: process.env.MS_GRAPH_LOG_TOKEN,
 };
 const paramsInfo = {
   appType: {
@@ -18,6 +22,10 @@ const paramsInfo = {
     value: params.appType,
     validate: isValidAppType,
     default: defaultAppType,
+  },
+  host: {
+    ask: 'Set the kintone Host: ',
+    value: params.host,
   },
   app: {
     ask: 'Set the kintone ID of the app: ',
