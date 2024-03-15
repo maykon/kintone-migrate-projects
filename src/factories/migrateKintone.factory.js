@@ -1,9 +1,11 @@
 import MigrateKintoneAppService from "../services/migrateKintoneApp.service.js";
 import MigrateKintoneProjectService from "../services/migrateKintoneProjects.service.js";
+import MigrateKintoneProposalService from "../services/migrateKintoneProposal.service.js";
 import BaseError from "../utils/base.error.js";
 
 export const migrateAppTypes = {
   project: 'Project',
+  proposal: 'Proposal',
   app: 'App',
 };
 
@@ -18,6 +20,7 @@ export const isValidAppType = (type) => {
 
 export const currentMigrateAppTypes = {
   project: MigrateKintoneProjectService,
+  proposal: MigrateKintoneProposalService,
   app: MigrateKintoneAppService,
 };
 

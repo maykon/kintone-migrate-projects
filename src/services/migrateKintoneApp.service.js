@@ -11,13 +11,13 @@ export default class MigrateKintoneAppService {
   #query;
 
   constructor({ 
-    client, secret, sharepointFolder, host, app, token, query, folderFields, folderStructureName, msToken, logToken,
+    client, secret, sharepointFolder, host, app, appKey, token, query, folderFields, folderStructureName, msToken, logToken,
   }) {
     this.#app = app;
     this.appType = 'App';
     this.#query = query;
     this.#msGraphService = new MsGraphService({ client, secret, sharepointFolder, token: msToken, logToken });
-    this.#kintoneService = new KintoneService({ host, app, token, folderFields, folderStructureName });
+    this.#kintoneService = new KintoneService({ host, app, token, folderFields, folderStructureName, appKey });
   }
 
   async run() {

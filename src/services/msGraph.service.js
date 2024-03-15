@@ -158,6 +158,10 @@ export default class MsGraphService {
         response = await this.#renewTokenWithNeeded(`${MsGraphService.#msGraphUrl}${url}`, method, body, headers);
         this.#debug('RequestGraphApi', response);
         if (response.error) {
+          console.error('#requestGraphApi: ', url, response);
+          if (/IO error during request payload read/.test(response.error.message)) {
+            return null;
+          }
           throw new BaseError(`Error in request [${method}]: ${url}`);
         }
         break;
@@ -206,7 +210,7 @@ export default class MsGraphService {
       }
       const fileContent = await fs.readFile(attachmentDir.concat(`/${file}`));
       const response = await this.requestGraphPut(urlFile, fileContent);
-      if (response.error) {
+      if (response?.error) {
         this.#debug('UploadFile', response.error);
         throw new BaseError(response.error?.message || 'Error in upload file');
       }
