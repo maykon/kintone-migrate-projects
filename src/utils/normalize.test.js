@@ -39,4 +39,9 @@ describe('Normalize Unit Tests', () => {
     match(normalize('LPT0'), /LPT0[0-9]+/);
   });
 
+  it('Should remove links in the text', () => {
+    strictEqual(normalize('Manteca  https://data-manteca.opendata.arcgis.com/datasets/437728d82d744e9b91d0c2202ef545dc_28/explore?location=37.812660%2C-121.260275%2C18.95'), 'Manteca');
+    strictEqual(normalize('Google http://google.com.br WebSite'), 'Google WebSite');
+  });
+
 });

@@ -1,5 +1,5 @@
 export const normalize = (text) => {
-  const normalizedTxt = text.replace(/\*/g, '')
+  const normalizedTxt = removeLinks(text).replace(/\*/g, '')
     .replace(/"|\{|\}|\*|:|<|>|\?|\/|\%|\+|\|/g, '')
     .replace(/\r|\t/g, '')
     .replace(/\n/g, ' - ')
@@ -10,6 +10,10 @@ export const normalize = (text) => {
     .replace(/\s+/, ' ')
     .trim();
   return replaceOutlookInvalidNames(normalizedTxt);
+};
+
+export const removeLinks = (text) => {
+  return text.replace(/https?:\/\/[^ ~]+/g, '');
 };
 
 export const replaceOutlookInvalidNames = (str) => {
