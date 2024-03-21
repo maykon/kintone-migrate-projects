@@ -1,7 +1,6 @@
-import BaseError from '../utils/base.error.js';
+import fs from 'fs/promises';
+import { BaseError, prompt } from '@maykoncapellari/cli-builder';
 import { encode } from '../utils/normalize.js';
-import { prompt } from '../utils/prompt.js';
-import fs, { constants } from 'fs/promises';
 
 export default class MsGraphService {
   static #msRedirectUri = 'https://login.live.com/oauth20_desktop.srf';
@@ -9,18 +8,20 @@ export default class MsGraphService {
   static #msGraphUrl = 'https://graph.microsoft.com/v1.0/';
   static #msScopes = 'openid offline_access User.Read Files.ReadWrite.All';
   static #MAX_RETRIES = 3;
+  static #msDomainUrl = 'https://%s.sharepoint.com/';
 
-  #firstRequest = true;
+  #msDomain;
   #msClientId;
   #msClientSecret;
   #msCode;
   #msAccessToken;
   #msRefreshToken;
   #sharepointFolder;
+  #sharepointFolderUrl;
   #isDebug;
   #shouldLogToken;
 
-  constructor({ client, secret, sharepointFolder, debug, token, logToken }) {
+  constructor({ domain, client, secret, sharepointFolder, sharepointFolderUrl, debug, token, logToken }) {
     if (!client) {
       throw new BaseError('⚠️ The Microsoft APP ClientID is required!');
     }
@@ -28,6 +29,8 @@ export default class MsGraphService {
       throw new BaseError('⚠️ The Microsoft APP ClientSecret is required!');
     }
 
+    this.#msDomain = domain;
+    this.#sharepointFolderUrl = sharepointFolderUrl || 'Shared Documents/';
     this.#msClientId = client;
     this.#msClientSecret = secret;
     this.logout();
@@ -242,5 +245,9 @@ When ready, please enter the value of the code parameter (from the URL of the bl
     this.#msCode = null;
     this.#msAccessToken = null;
     this.#msRefreshToken = null;
+  }
+
+  getSharepointUrl(url) {
+    return MsGraphService.#msDomainUrl.replace(/%s/, this.#msDomain).concat(this.#sharepointFolderUrl).concat(url);
   }
 }

@@ -1,10 +1,9 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs/promises';
-import { spawn } from '../utils/spawnAsync.js';
-import { csvParser } from '../utils/csvParser.js';
-import BaseError from '../utils/base.error.js';
+import { spawn, BaseError } from '@maykoncapellari/cli-builder';
 import { normalize } from '../utils/normalize.js';
+import { csvParser } from '../utils/csvParser.js';
 
 export default class KintoneService {
   #host;
@@ -147,15 +146,26 @@ export default class KintoneService {
             if (acc[record[this.#appKey]][key].length === 1 && acc[record[this.#appKey]][key][0] === '') {
               acc[record[this.#appKey]][key] = null;
             }
-          }          
+          }
         });
         return acc;
       }, {});
   }
 
   async deleteFiles() {
-    await fs.rm(this.#kintoneCSV, { force: true });
     await fs.rm(this.#kintoneAttachments, { force: true, recursive: true });
+  }
+  
+  async deleteCSVFiles() {
+    await fs.rm(this.#kintoneCSV, { force: true });
+  }
+
+  get kintoneCSV() {
+    return this.#kintoneCSV;
+  }
+
+  getRecordUrl(record) {
+    return `https://pecc.kintone.com/k/${this.#app}/show#record=${record}`;
   }
   
 }

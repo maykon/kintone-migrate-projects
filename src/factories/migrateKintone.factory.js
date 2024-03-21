@@ -1,7 +1,7 @@
 import MigrateKintoneAppService from "../services/migrateKintoneApp.service.js";
 import MigrateKintoneProjectService from "../services/migrateKintoneProjects.service.js";
 import MigrateKintoneProposalService from "../services/migrateKintoneProposal.service.js";
-import BaseError from "../utils/base.error.js";
+import { BaseError } from '@maykoncapellari/cli-builder';
 
 export const migrateAppTypes = {
   project: 'Project',
