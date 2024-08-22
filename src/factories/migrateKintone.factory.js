@@ -1,10 +1,12 @@
 import MigrateKintoneAppService from "../services/migrateKintoneApp.service.js";
 import MigrateKintoneProjectService from "../services/migrateKintoneProjects.service.js";
+import MigrateKintoneProjectNewestService from "../services/migrateKintoneProjectsNewest.js";
 import MigrateKintoneProposalService from "../services/migrateKintoneProposal.service.js";
 import { BaseError } from '@maykoncapellari/cli-builder';
 
 export const migrateAppTypes = {
   project: 'Project',
+  projectNewest: 'ProjectNewest',
   proposal: 'Proposal',
   app: 'App',
 };
@@ -20,6 +22,7 @@ export const isValidAppType = (type) => {
 
 export const currentMigrateAppTypes = {
   project: MigrateKintoneProjectService,
+  projectNewest: MigrateKintoneProjectNewestService,
   proposal: MigrateKintoneProposalService,
   app: MigrateKintoneAppService,
 };

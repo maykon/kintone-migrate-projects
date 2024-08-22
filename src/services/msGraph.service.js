@@ -200,8 +200,8 @@ export default class MsGraphService {
       .catch(() => false);
   }
 
-  async uploadFile(attachmentDir, folderName, file) {
-    const fileName = file.split('/').at(-1);
+  async uploadFile(attachmentDir, folderName, file, renamedFile) {
+    const fileName = (renamedFile || file).split('/').at(-1);
     const urlFile = this.#sharepointFolder.concat(`:/${folderName}/${encode(fileName)}:/content`);
     try {
       const filePath = attachmentDir.concat(`/${file}`);
@@ -219,7 +219,8 @@ export default class MsGraphService {
       }
       return response;
     } catch (error) {
-      this.#debug('UploadFile', { urlFile, error });
+      console.error(error, file);
+      this.#debug('UploadFile', { urlFile, error, file });
       throw new BaseError(`Cannot upload a new file in ${urlFile}`);
     }    
   }

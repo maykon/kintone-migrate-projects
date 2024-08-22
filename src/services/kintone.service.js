@@ -15,8 +15,9 @@ export default class KintoneService {
   #folderFields;
   #folderStructureName;
   #fileFields;
+  #customHeaders;
 
-  constructor({ host, app, token, folderFields, appKey, folderStructureName }) {
+  constructor({ host, app, token, folderFields, appKey, folderStructureName, customHeaders }) {
     if (!host) {
       throw new BaseError('⚠️ The kintone Host is required!');
     }
@@ -35,15 +36,17 @@ export default class KintoneService {
     this.#folderFields = folderFields || [];
     this.#folderStructureName = folderStructureName || ((record) => `#${record[this.#appKey]}`);
     this.#fileFields = null;
+    this.#customHeaders = customHeaders || [];
   }
 
   get kintoneAttachments() {
     return this.#kintoneAttachments;
   }
 
-  async exportKintoneAttachments({ saveAttachments, query }) {
+  async exportKintoneAttachments({ saveAttachments, query, fields }) {
     const kintoneAttachments = saveAttachments ? ['--attachments-dir', this.#kintoneAttachments] : [];
     const kintoneConditional = query ? ['-c', query] : [];
+    const kintoneFields = fields ? ['--fields', fields] : [];
     await spawn('mkdir', ['-p', this.#kintoneAttachments]);
     const recordsApp = await spawn('cli-kintone', [
           'record',
@@ -56,6 +59,7 @@ export default class KintoneService {
           this.#token,
           ...kintoneAttachments,
           ...kintoneConditional,
+          ...kintoneFields,
         ],
         { 
           env: process.env,
@@ -93,9 +97,17 @@ export default class KintoneService {
       return fields;
     }
     this.#fileFields = Object.entries(fields?.properties ?? {})
-      .filter(([_, value]) => value.type === 'FILE')
+      .filter(([_, value]) => ['FILE', 'SUBTABLE'].includes(value.type))
       .reduce((acc, [key, value]) => {
-        acc[key] = normalize(value.label);
+        if (value.type === 'FILE') {
+          acc[key] = normalize(value.label);
+        } else if (value.type === 'SUBTABLE') {
+          Object.entries(value.fields)
+          .filter(([_, value]) => value.type === 'FILE')
+          .forEach(([subKey, subValue]) => {
+            acc[subKey] = normalize(subValue.label);
+          });
+        }
         return acc;
       }, {});
     return this.#fileFields;
@@ -103,7 +115,7 @@ export default class KintoneService {
 
   getHeaderMap(data, fileFields) {
     const headerMap = new Map();
-    const headerFields = [this.#appKey, ...this.#folderFields, ...fileFields];
+    const headerFields = [this.#appKey, ...this.#customHeaders, ...this.#folderFields, ...fileFields];
     data.forEach((h, index) => {
       if (headerFields.includes(h)) {
         headerMap.set(index, h);

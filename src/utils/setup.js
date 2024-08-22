@@ -11,6 +11,7 @@ const params = {
   app: process.env.KINTONE_APP,
   token: process.env.KINTONE_TOKEN,
   query: process.env.KINTONE_APP_QUERY,
+  fields: process.env.KINTONE_APP_FIELDS,
   msToken: process.env.MS_GRAPH_ACCESS_TOKEN,
   domain: process.env.MS_DOMAIN,
   client: process.env.MS_GRAPH_CLIENT_ID ?? defaultClientValue,
@@ -41,6 +42,10 @@ const paramsInfo = {
   query: {
     ask: 'Set the Kintone query that will specify what records will be returned (Empty will return all records): ',
     value: params.query,
+  },
+  fields: {
+    ask: 'Set the Kintone fields that will specify what fields will be returned (Empty will return all fields): ',
+    value: params.fields,
   },
   client: {
     ask: 'Set the Microsoft APP ClientID used to connect to sharepoint: ',
