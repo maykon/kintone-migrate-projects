@@ -13,6 +13,7 @@ export default class MigrateKintoneAppService {
   #app;
   #query;
   #fields;
+  #exportedTimes;
 
   constructor({ 
     domain, client, secret, sharepointFolder, sharepointFolderUrl, host, app, appKey, token, query, folderFields, folderStructureName, msToken, logToken, customHeaders, fields,
@@ -23,6 +24,11 @@ export default class MigrateKintoneAppService {
     this.#fields = fields;
     this.#msGraphService = new MsGraphService({ domain, client, secret, sharepointFolder, sharepointFolderUrl, token: msToken, logToken });
     this.#kintoneService = new KintoneService({ host, app, token, folderFields, folderStructureName, appKey, customHeaders });
+    this.#exportedTimes = 0;
+  }
+
+  set query(query) {
+    this.#query = query;
   }
 
   async getFileFields() {
@@ -93,10 +99,19 @@ export default class MigrateKintoneAppService {
             continue;
           }
           const folderName = `${record.attachmentFolder}/${encodeURIComponent(label)}`;
-          await Promise.all(record[field].map((file, index) => {
+          for (const [index, file] of record[field].entries()) {
+            if (!file?.toString()?.trim()) {
+              continue;
+            }
             const renamedFile = this.renameAttachmentFile(record, field, file, index);
-            return this.#msGraphService.uploadFile(this.#kintoneService.kintoneAttachments, folderName, file, renamedFile);
-          }));
+            await this.#msGraphService.uploadFile({ 
+              attachmentDir: this.#kintoneService.kintoneAttachments,
+              folderName, 
+              file,
+              renamedFile,
+              conflict: 'replace',
+            });
+          }
         }
       }
     } finally {
@@ -112,6 +127,7 @@ export default class MigrateKintoneAppService {
     }
 
     console.info('🎉 The attachments was exported to sharepoint with success! 🎉');
+    return true;
   }
 
   renameAttachmentFile(record, field, file, index) {
@@ -142,7 +158,7 @@ export default class MigrateKintoneAppService {
       return;
     }
 
-    const kintoneFile = this.#getModuleFilePath('exported', `exported_${this.appType}_${this.#app}.csv`);
+    const kintoneFile = this.#getModuleFilePath('exported', `exported_${this.appType}_${this.#app}_${++this.#exportedTimes}.csv`);
     const exported = fs.createWriteStream(kintoneFile);
     await consoleCli.loadingBarStart();
     try {      

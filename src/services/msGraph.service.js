@@ -1,7 +1,22 @@
+import mime  from 'mime';
 import fs from 'fs/promises';
 import { BaseError, prompt } from '@maykoncapellari/cli-builder';
-import { encode } from '../utils/normalize.js';
+import NormalizeUtils from '../utils/normalize.js';
 
+/**
+ * Microsoft Graph Service
+ * 
+ * This class allow connect to ms graph, make the requests and upload some files to sharepoint folders.
+ * 
+ * @class
+ * @example
+ * const msService = new MsGraphService({ ...params });
+ * await msService.signIn();
+ * // Will read '~/attachmentsDir/myfile.pdf' and put on 'me/drive/root/My Sharepoint Docs/myfile.pdf' on sharepoint
+ * await msService.uploadFile({ attachmentDir: '~/attachmentsDir', folderName: 'My Sharepoint Docs', file: 'myfile.pdf');
+ * const profile = await msService.requestGraphGet('me'); // Get my profile data
+ * await msService.logout();
+ */
 export default class MsGraphService {
   static #msRedirectUri = 'https://login.live.com/oauth20_desktop.srf';
   static #msGraphAuthUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/'
@@ -21,7 +36,26 @@ export default class MsGraphService {
   #isDebug;
   #shouldLogToken;
 
-  constructor({ domain, client, secret, sharepointFolder, sharepointFolderUrl, debug, token, logToken }) {
+  /**
+   * The Params MsGraphService.
+   * 
+   * @typedef {Object} MsGraphServiceParams
+   * @property {string} domain - The Microsoft Sharepoint domain.
+   * @property {string} client - The Microsoft APP ClientID.
+   * @property {string} secret - The Microsoft APP ClientSecret.
+   * @property {string} [token] - The Microsoft Access Token (When defined the client and secret is ignored)
+   * @property {string} [sharepointFolder] - The Microsoft Sharepoint folder used on upload files (Default: 'me/drive/root').
+   * @property {string} [sharepointFolderUrl] - The Microsoft Sharepoint folder URL used on upload files (Default: 'Shared Documents/').
+   * @property {boolean} [debug] - Define debug mode (Default: false)
+   * @property {boolean} [logToken] - Define if will log the access token after sigIn (Default: false)
+   */
+
+  /**
+   * 
+   * @constructor
+   * @param {MsGraphServiceParams} params
+   */
+  constructor({ domain, client, secret, token, sharepointFolder, sharepointFolderUrl, debug, logToken }) {
     if (!client) {
       throw new BaseError('⚠️ The Microsoft APP ClientID is required!');
     }
@@ -104,11 +138,6 @@ export default class MsGraphService {
     return this.requestGraphGet('me');
   }
 
-  async getMyInfoFail() {
-    this.#msAccessToken = '123';
-    return this.requestGraphGet('me');
-  }
-
   #getResponseLog(response) {
     const { url, status, statusText } = response;
     return { url, status, statusText };
@@ -146,14 +175,39 @@ export default class MsGraphService {
       if (response.status === 401) {
         throw new BaseError(response.statusText);
       }
-      return response.json();
+      return response?.json();
     } catch (error) {
       this.#debug('RenewTokenWithNeeded Error', error);
       throw error;
     }
   }
 
-  async #requestGraphApi(url, method, body, headers = {}) {
+  /**
+   * The Params RequestConflictParams.
+   * 
+   * @typedef {Object} RequestConflictParams
+   * @property {error|etag} type - The type to resolve the conflict
+   * @property {string|random} itemNameResolver - The way will be resolve the item name - concat fixed text or random
+   */
+
+  /**
+   * The Params RequestApiParams.
+   * 
+   * @typedef {Object} RequestApiParams
+   * @property {string} url - The url that will be requested
+   * @property {GET|POST|PUT|DELETE} method - The HTTP method for request
+   * @property {*} [body] - The body used in the request
+   * @property {*} [headers] - The headers used in the request
+   * @property {RequestConflictParams} [conflict] - The conflict resolver config
+   */
+
+  /**
+   * Request a Graph endpoint
+   * 
+   * @param {RequestApiParams} param 
+   * @returns 
+   */
+  async #requestGraphApi({ url, method, body, headers = {}, conflict }) {
     let retry = 1;
     let response = null;
     while(retry <= MsGraphService.#MAX_RETRIES) {
@@ -162,10 +216,15 @@ export default class MsGraphService {
         this.#debug('RequestGraphApi', response);
         if (response.error) {
           console.error('#requestGraphApi: ', url, response);
+          console.error('#requestGraphApi: ', response);
+          if (/eTag mismatch/.response.error.message){
+            const { eTag } = await this.requestGraphGet(url);
+            headers['If-Match'] = eTag;
+          }
           if (/IO error during request payload read/.test(response.error.message)) {
             return null;
           }
-          throw new BaseError(`Error in request [${method}]: ${url}`);
+          throw new BaseError(`Error in request [${method}]: ${url}`, response.error);
         }
         break;
       } catch(error) {
@@ -178,20 +237,52 @@ export default class MsGraphService {
     return response;
   }
 
+  /**
+   * Make the GET request to a specific endpoint
+   * 
+   * @param {string} url 
+   * @param {*} [headers]
+   * @returns 
+   */
   async requestGraphGet(url, headers) {
-    return this.#requestGraphApi(url, 'GET', headers);
+    return this.#requestGraphApi({ url, method: 'GET', headers });
   }
 
+  /**
+   * Make the POST request to a specific endpoint
+   * 
+   * @param {string} url 
+   * @param {*} [body]
+   * @param {*} [headers]
+   * @returns 
+   */
   async requestGraphPost(url, body, headers) {
-    return this.#requestGraphApi(url, 'POST', body, headers);
+    return this.#requestGraphApi({ url, method: 'POST', body, headers });
   }
 
-  async requestGraphPut(url, body, headers, debug) {
-    return this.#requestGraphApi(url, 'PUT', body, headers, debug);
+  /**
+   * Make the PUT request to a specific endpoint
+   * 
+   * @param {string} url 
+   * @param {*} [body]
+   * @param {*} [headers]
+   * @param {RequestConflictParams} [conflict]
+   * @returns 
+   */
+  async requestGraphPut(url, body, headers, conflict) {
+    return this.#requestGraphApi({ url, method: 'PUT', body, headers, conflict });
   }
 
+  /**
+   * Make the DELETE request to a specific endpoint
+   * 
+   * @param {string} url 
+   * @param {*} [body]
+   * @param {*} [headers]
+   * @returns 
+   */
   async requestGraphDelete(url, body, headers) {
-    return this.#requestGraphApi(url, 'DELETE', body, headers);
+    return this.#requestGraphApi({ url, method: 'DELETE', body, headers });
   }
 
   async #fileExists(filename) {
@@ -200,9 +291,30 @@ export default class MsGraphService {
       .catch(() => false);
   }
 
-  async uploadFile(attachmentDir, folderName, file, renamedFile) {
+  /**
+   * The Params UploadFileParams.
+   * 
+   * @typedef {Object} UploadFileParams
+   * @property {string} attachmentDir - The path to a directory that contains the file to be uploaded
+   * @property {string} folderName - the URL Path that will be save the file on Sharepoint (If the folder/path not exists will be created)
+   * @property {string} file - The filename from the file that is inside of `attachmentDir` and will be saved on Sharepoint
+   * @property {RequestConflictParams} [conflict] - The conflict resolver config
+   * @property {string} renamedFile - The renamed filename that will be saved on Sharepoint
+   */
+
+  /**
+   * Upload some file to a specific folder on Sharepoint
+   * 
+   * @param {UploadFileParams} params - The params for upload file
+   * @returns 
+   * 
+   * @example
+   * // Will read '~/attachmentsDir/myfile.pdf' and put on 'me/drive/root/My Sharepoint Docs/myfile.pdf' on sharepoint
+   * await msService.uploadFile({ attachmentDir: '~/attachmentsDir', folderName: 'My Sharepoint Docs', file: 'myfile.pdf' });
+   */
+  async uploadFile({ attachmentDir, folderName, file, conflict, renamedFile }) {
     const fileName = (renamedFile || file).split('/').at(-1);
-    const urlFile = this.#sharepointFolder.concat(`:/${folderName}/${encode(fileName)}:/content`);
+    const urlFile = this.#sharepointFolder.concat(`:/${folderName}/${NormalizeUtils.encode(fileName)}:/content`);
     try {
       const filePath = attachmentDir.concat(`/${file}`);
       const fileExist = await this.#fileExists(filePath);
@@ -211,20 +323,31 @@ export default class MsGraphService {
         this.#debug('uploadFile', `File ${filePath} not exists.`);
         return null;
       }
-      const fileContent = await fs.readFile(attachmentDir.concat(`/${file}`));
-      const response = await this.requestGraphPut(urlFile, fileContent);
+      const fileContent = await fs.readFile(filePath);
+      const header = {
+        'Accept': '*/*',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Content-Type': mime.getType(filePath),
+        'Content-Length': fileContent.byteLength,
+      };
+      const response = await this.requestGraphPut(urlFile, fileContent, header, conflict);
       if (response?.error) {
         this.#debug('UploadFile', response.error);
-        throw new BaseError(response.error?.message || 'Error in upload file');
+        throw new BaseError(response.error?.message || 'Error in upload file', response?.error);
       }
       return response;
     } catch (error) {
-      console.error(error, file);
-      this.#debug('UploadFile', { urlFile, error, file });
-      throw new BaseError(`Cannot upload a new file in ${urlFile}`);
+      this.#debug('UploadFile', { urlFile, error });
+      throw new BaseError(`Cannot upload a new file in ${urlFile}`, error);
     }    
   }
 
+  /**
+   * Sign In on Microsoft get the access token and refresh token
+   * 
+   * @returns 
+   */
   async signIn() {
     console.info('💡 Sharepoint Authentication step\n');
     if (this.#msAccessToken) {
@@ -242,12 +365,21 @@ When ready, please enter the value of the code parameter (from the URL of the bl
     await this.#requestAuthorizationToken(this.#msCode);
   }
 
+  /**
+   * Log out - Clean all tokens
+   */
   logout() {
     this.#msCode = null;
     this.#msAccessToken = null;
     this.#msRefreshToken = null;
   }
 
+  /**
+   * Return the complete Sharepoint Url from some partial URL file
+   * 
+   * @param {*} - Partial url file 
+   * @returns Return the complete Sharepoint url
+   */
   getSharepointUrl(url) {
     return MsGraphService.#msDomainUrl.replace(/%s/, this.#msDomain).concat(this.#sharepointFolderUrl).concat(url);
   }

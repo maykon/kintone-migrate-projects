@@ -1,6 +1,6 @@
 import path from 'path';
 import MigrateKintoneAppService from "./migrateKintoneApp.service.js";
-import { encode } from "../utils/normalize.js";
+import NormalizeUtils from '../utils/normalize.js';
 
 export default class MigrateKintoneProjectNewestService extends MigrateKintoneAppService {
   static #projectFolderFields = ["pecc_project_number"];
@@ -17,7 +17,7 @@ export default class MigrateKintoneProjectNewestService extends MigrateKintoneAp
   static #folderStructureName(record) {
     return [`#${record.pecc_project_number}`]
       .filter((f) => !!f)
-      .map(encode)
+      .map(NormalizeUtils.encode)
       .join('/');
   }
 
@@ -44,6 +44,8 @@ export default class MigrateKintoneProjectNewestService extends MigrateKintoneAp
       return file;
     }
     const ext = path.extname(file);
-    return `${renamed}_${index}${ext}`;
+    const defaultFileName = path.basename(file);
+    const fileName = (Array.isArray(renamed) ? (renamed[index] || renamed[0]) : renamed) || defaultFileName;
+    return `${fileName}_${index}${ext}`;
   }
 }

@@ -2,7 +2,7 @@ import os from 'os';
 import path from 'path';
 import fs from 'fs/promises';
 import { spawn, BaseError } from '@maykoncapellari/cli-builder';
-import { normalize } from '../utils/normalize.js';
+import NormalizeUtils from '../utils/normalize.js';
 import { csvParser } from '../utils/csvParser.js';
 
 export default class KintoneService {
@@ -16,6 +16,7 @@ export default class KintoneService {
   #folderStructureName;
   #fileFields;
   #customHeaders;
+  #fieldsInsideTable = new Set();
 
   constructor({ host, app, token, folderFields, appKey, folderStructureName, customHeaders }) {
     if (!host) {
@@ -92,6 +93,7 @@ export default class KintoneService {
       return this.#fileFields;
     }
 
+    this.#fieldsInsideTable.clear();
     const fields = await this.getSchemaApp();
     if (!Object.keys(fields).length) {
       return fields;
@@ -100,12 +102,15 @@ export default class KintoneService {
       .filter(([_, value]) => ['FILE', 'SUBTABLE'].includes(value.type))
       .reduce((acc, [key, value]) => {
         if (value.type === 'FILE') {
-          acc[key] = normalize(value.label);
+          acc[key] = NormalizeUtils.normalize(value.label);
         } else if (value.type === 'SUBTABLE') {
           Object.entries(value.fields)
-          .filter(([_, value]) => value.type === 'FILE')
           .forEach(([subKey, subValue]) => {
-            acc[subKey] = normalize(subValue.label);
+            if (subValue.type === 'FILE') {
+              acc[subKey] = NormalizeUtils.normalize(subValue.label);
+            } else {
+              this.#fieldsInsideTable.add(subKey);
+            }
           });
         }
         return acc;
@@ -130,7 +135,8 @@ export default class KintoneService {
     const fileFieldKeys = Object.keys(fileFields);
     const headerMap = this.getHeaderMap(data[0], fileFieldKeys);
     return data.slice(1)
-      .map((r) => r
+      .map((r, row) => {
+        return r
         .map((value, index) => {
           if(!headerMap.has(index)) {
             return null;
@@ -143,13 +149,13 @@ export default class KintoneService {
           return ({ [key]: valueField });
         })
         .filter(r => r)
-        .reduce((acc, r) => {
+        .reduce((acc, r, _, raw) => {
           const [[key, value]] = Object.entries(r);
-          acc[key] = value;          
+          acc[key] = value;
           return acc;
-        }, {})
-      )
-      .reduce((acc, record) => {
+        }, {});
+      })
+      .reduce((acc, record, _, raw) => {
         acc[record[this.#appKey]] = acc[record[this.#appKey]] || record;
         acc[record[this.#appKey]]['attachmentFolder'] = this.#folderStructureName(acc[record[this.#appKey]]);
         Object.entries(record).forEach(([key, value]) => {
@@ -158,6 +164,10 @@ export default class KintoneService {
             if (acc[record[this.#appKey]][key].length === 1 && acc[record[this.#appKey]][key][0] === '') {
               acc[record[this.#appKey]][key] = null;
             }
+          } else if (this.#fieldsInsideTable.has(key) && !!value && value?.toString()?.trim().length > 0) {
+            const oldValue = acc[record[this.#appKey]][key] || [];
+            const arrValue = Array.isArray(oldValue) ? oldValue : [oldValue];
+            acc[record[this.#appKey]][key] = [...arrValue, value];
           }
         });
         return acc;

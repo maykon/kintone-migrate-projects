@@ -10,3 +10,4 @@ export const csvParser = async (filePath) => {
     }
     return records; 
 };
+

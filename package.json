@@ -22,6 +22,7 @@
   "license": "ISC",
   "dependencies": {
     "@maykoncapellari/cli-builder": "^1.0.11",
-    "csv-parse": "^5.5.3"
+    "csv-parse": "^5.5.3",
+    "mime": "^4.0.4"
   }
 }
