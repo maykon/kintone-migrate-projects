@@ -6,7 +6,7 @@ export default class MigrateKintoneProjectService extends MigrateKintoneAppServi
 
   static #folderStructureName(record) {
     const address = `${record.project_city}, ${record.project_state} - ${record.project_address}`;
-    return [record.client, record.property_occupant, record.project_type, `#${record.pecc_project_number} - ${address}`]
+    return ['Projects', record.client, record.property_occupant, record.project_type, `#${record.pecc_project_number} - ${address}`]
       .filter((f) => !!f)
       .map(NormalizeUtils.encode)
       .join('/');
